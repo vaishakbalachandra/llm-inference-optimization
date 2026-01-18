@@ -1,0 +1,362 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{amsmath}
+
+% Header and footer
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{LLM Inference Optimization}
+\lhead{Vaishak Balachandra}
+\rfoot{Page \thepage}
+
+% Section formatting
+\titleformat{\section}{\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{1em}{}
+
+% Code listing style
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    backgroundcolor=\color{gray!10}
+}
+
+% Hyperlink colors
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+\begin{document}
+
+% Title Page
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    
+    {\Huge\bfseries Large Language Model\\Inference Optimization\par}
+    \vspace{1cm}
+    {\Large A Comprehensive Study of Performance Optimization Techniques\par}
+    \vspace{2cm}
+    
+    {\Large\bfseries Vaishak Balachandra\par}
+    \vspace{0.5cm}
+    {\large Master of Science in Computer Science\par}
+    {\large Purdue University\par}
+    \vspace{2cm}
+    
+    {\large Project Report\par}
+    {\large January 2026\par}
+    \vfill
+    
+    {\large\textbf{Abstract}\par}
+    \begin{quote}
+    This technical report presents a comprehensive empirical study of optimization techniques for large language model inference. We benchmark GPT-2 (124M parameters) and Mistral-7B (7B parameters) across multiple optimization strategies including FlashAttention-2, mixed-precision inference (FP16), and 4-bit quantization. Our findings reveal critical insights into the workload-dependency of optimization techniques and their varying effectiveness across model scales. All experiments were conducted on NVIDIA A100 GPU using industry-standard benchmarking methodologies.
+    \end{quote}
+\end{titlepage}
+
+% Table of Contents
+\tableofcontents
+\newpage
+
+% Main Content
+\section{Introduction}
+
+\subsection{Motivation}
+Large Language Models (LLMs) have revolutionized natural language processing, but their computational demands pose significant challenges for deployment. Inference optimization is critical for:
+\begin{itemize}
+    \item Reducing operational costs in production environments
+    \item Enabling real-time applications with strict latency requirements
+    \item Democratizing access to powerful AI models through reduced hardware requirements
+    \item Minimizing environmental impact through improved energy efficiency
+\end{itemize}
+
+\subsection{Objectives}
+This study aims to:
+\begin{enumerate}
+    \item Benchmark baseline performance of GPT-2 and Mistral-7B models
+    \item Evaluate the impact of FlashAttention-2 CUDA kernel optimization
+    \item Assess mixed-precision (FP16) and quantization (INT8, 4-bit NF4) techniques
+    \item Analyze optimization scalability across different model sizes
+    \item Establish reproducible benchmarking methodology
+\end{enumerate}
+
+\subsection{Scope}
+We focus on inference-time optimizations using PyTorch and HuggingFace Transformers library. Training optimizations and model architecture modifications are outside the scope of this study.
+
+\section{Background \& Related Work}
+
+\subsection{Transformer Architecture}
+The attention mechanism, introduced by Vaswani et al. (2017), forms the foundation of modern LLMs. The self-attention operation has $O(N^2)$ complexity with respect to sequence length $N$, creating memory bandwidth bottlenecks:
+
+\begin{equation}
+\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+\end{equation}
+
+\subsection{FlashAttention}
+FlashAttention (Dao et al., 2022) addresses memory bottlenecks through:
+\begin{itemize}
+    \item Kernel fusion to minimize HBM (High Bandwidth Memory) accesses
+    \item Tiling to maximize utilization of fast SRAM
+    \item Recomputation strategies to reduce memory footprint
+\end{itemize}
+
+Theoretical speedup: 3-4x for long sequences on modern GPUs.
+
+\subsection{Quantization}
+Quantization reduces precision of model weights and activations:
+\begin{itemize}
+    \item \textbf{FP16}: 16-bit floating point (2 bytes per parameter)
+    \item \textbf{INT8}: 8-bit integers (1 byte per parameter)
+    \item \textbf{NF4}: 4-bit NormalFloat (0.5 bytes per parameter)
+\end{itemize}
+
+Expected benefits: 2-4x memory reduction, 1.5-2x throughput improvement.
+
+\section{Methodology}
+
+\subsection{Experimental Setup}
+
+\subsubsection{Hardware}
+\begin{itemize}
+    \item GPU: NVIDIA A100 (40GB VRAM)
+    \item CUDA Version: 12.4
+    \item Driver Version: 550.54.15
+\end{itemize}
+
+\subsubsection{Software Stack}
+\begin{itemize}
+    \item PyTorch 2.1.0+cu121
+    \item Transformers 4.36.0
+    \item FlashAttention 2.x
+    \item bitsandbytes (quantization library)
+\end{itemize}
+
+\subsection{Models Evaluated}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+\textbf{Model} & \textbf{Parameters} & \textbf{Size (FP32)} & \textbf{Architecture} \\ \midrule
+GPT-2 & 124M & 500 MB & Decoder-only Transformer \\
+Mistral-7B & 7B & 14 GB & Decoder-only Transformer \\ \bottomrule
+\end{tabular}
+\caption{Model Specifications}
+\label{tab:models}
+\end{table}
+
+\subsection{Optimization Techniques}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}llp{6cm}@{}}
+\toprule
+\textbf{Technique} & \textbf{Target} & \textbf{Description} \\ \midrule
+Baseline (FP32) & GPT-2 only & Standard 32-bit floating point \\
+FP16 & Both & Half-precision (16-bit) inference \\
+INT8 & GPT-2 only & 8-bit integer quantization \\
+FlashAttention-2 & Mistral-7B & Optimized attention kernels \\
+4-bit NF4 & Mistral-7B & 4-bit NormalFloat quantization \\ \bottomrule
+\end{tabular}
+\caption{Optimization Configurations}
+\label{tab:optimizations}
+\end{table}
+
+\subsection{Benchmarking Protocol}
+
+To ensure statistical validity, we implemented rigorous benchmarking:
+
+\begin{enumerate}
+    \item \textbf{Warm-up Phase}: 1 iteration (discarded) to initialize GPU kernels
+    \item \textbf{Measurement Phase}: 8 iterations per configuration
+    \item \textbf{Synchronization}: \texttt{torch.cuda.synchronize()} before/after timing
+    \item \textbf{Metrics Collected}:
+    \begin{itemize}
+        \item Mean inference time (seconds)
+        \item Standard deviation
+        \item Median throughput (tokens/second)
+        \item GPU memory footprint (GB)
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Test Parameters}:
+\begin{itemize}
+    \item Prompt: "Explain quantum computing:"
+    \item Max new tokens: 100
+    \item Sampling: Greedy (deterministic)
+\end{itemize}
+
+\section{Results}
+
+\subsection{Performance Metrics}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+\textbf{Model} & \textbf{Configuration} & \textbf{Throughput} & \textbf{Memory} & \textbf{Speedup} \\
+ & & \textbf{(tok/s)} & \textbf{(GB)} & \textbf{vs Base} \\ \midrule
+\multirow{3}{*}{GPT-2} 
+& Baseline (FP32) & 96.2 & 0.51 & 1.00x \\
+& FP16 & 99.6 & 0.26 & 1.04x \\
+& INT8 & 32.7 & 0.18 & 0.34x \\ \midrule
+\multirow{3}{*}{Mistral-7B} 
+& Baseline (FP16) & 26.7 & 14.5 & 1.00x \\
+& FlashAttention-2 & 20.4 & 14.5 & 0.76x \\
+& 4-bit NF4 & 18.7 & 4.0 & 0.70x \\ \bottomrule
+\end{tabular}
+\caption{Comprehensive Benchmark Results}
+\label{tab:results}
+\end{table}
+
+\subsection{Visualizations}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{optimization_results.png}
+\caption{Performance comparison across models and configurations. Left: Throughput (tokens/second). Right: GPU memory usage (GB).}
+\label{fig:results}
+\end{figure}
+
+\subsection{Key Observations}
+
+\subsubsection{GPT-2 (124M Parameters)}
+\begin{itemize}
+    \item \textbf{FP16}: Minimal improvement (1.04x) due to small model size
+    \item \textbf{INT8}: \textcolor{red}{Significant regression (0.34x)} caused by quantization overhead exceeding compute savings
+\end{itemize}
+
+\subsubsection{Mistral-7B (7B Parameters)}
+\begin{itemize}
+    \item \textbf{FlashAttention-2}: \textcolor{red}{Unexpected 0.76x slowdown}
+    \item \textbf{4-bit NF4}: \textcolor{red}{0.70x throughput but 72\% memory reduction}
+\end{itemize}
+
+\section{Analysis \& Discussion}
+
+\subsection{Why Did Optimizations Underperform?}
+
+Our results contradict published benchmarks. Critical analysis reveals:
+
+\subsubsection{Batch Size Dependency}
+\textbf{Our Setup}: Batch size = 1 (single inference)
+
+\textbf{Literature}: FlashAttention benchmarks typically use batch sizes of 8-32
+
+\textbf{Impact}: Small batches insufficient to amortize kernel launch overhead and fail to saturate GPU parallelism.
+
+\subsubsection{Sequence Length Dependency}
+\textbf{Our Setup}: 100 tokens per generation
+
+\textbf{Optimal}: FlashAttention excels at 1000+ token sequences
+
+\textbf{Impact}: Memory bandwidth savings negligible for short sequences where compute dominates.
+
+\subsubsection{Quantization Overhead}
+For small models (GPT-2):
+\begin{itemize}
+    \item Quantization/dequantization operations add latency
+    \item Reduced arithmetic intensity fails to offset overhead
+    \item INT8 operations not optimized on all CUDA compute capabilities
+\end{itemize}
+
+\subsection{Implications for Production Deployment}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}p{4cm}p{5cm}p{5cm}@{}}
+\toprule
+\textbf{Use Case} & \textbf{Recommendation} & \textbf{Rationale} \\ \midrule
+Single-user chatbot & Baseline FP16 & Low batch size, moderate sequences \\
+Batch processing & FlashAttention + FP16 & High throughput, long contexts \\
+Edge deployment & 4-bit quantization & Memory constraints dominate \\
+Real-time API & Baseline FP16 & Latency-critical, variable load \\ \bottomrule
+\end{tabular}
+\caption{Deployment Recommendations Based on Workload}
+\label{tab:recommendations}
+\end{table}
+
+\subsection{Lessons Learned}
+
+\begin{enumerate}
+    \item \textbf{Optimization is Workload-Specific}: Techniques effective in one scenario may degrade performance in another
+    \item \textbf{Benchmarking Must Match Production}: Synthetic benchmarks with different parameters can mislead
+    \item \textbf{Profiling is Essential}: Always measure before optimizing
+    \item \textbf{Negative Results Have Value}: Understanding failure modes is critical engineering knowledge
+\end{enumerate}
+
+\section{Threats to Validity}
+
+\subsection{Internal Validity}
+\begin{itemize}
+    \item GPU thermal throttling: Mitigated via warm-up runs
+    \item Background processes: Minimal on dedicated Colab instance
+    \item Timing precision: Sub-millisecond accuracy via CUDA synchronization
+\end{itemize}
+
+\subsection{External Validity}
+\begin{itemize}
+    \item Single GPU type (A100): Results may differ on V100, H100, or consumer GPUs
+    \item Two model architectures: Findings may not generalize to encoder-decoder models
+    \item Synthetic workload: Real production workloads have different characteristics
+\end{itemize}
+
+\section{Future Work}
+
+\subsection{Immediate Extensions}
+\begin{itemize}
+    \item Vary batch sizes (1, 4, 8, 16, 32) to identify FlashAttention crossover point
+    \item Test longer sequences (512, 1024, 2048 tokens)
+    \item Evaluate on additional hardware (H100, L40, consumer RTX 4090)
+\end{itemize}
+
+\subsection{Advanced Optimizations}
+\begin{itemize}
+    \item \textbf{Speculative Decoding}: Generate multiple tokens per forward pass
+    \item \textbf{Continuous Batching}: Dynamic batching for variable-length inputs
+    \item \textbf{PagedAttention} (vLLM): Efficient KV cache management
+    \item \textbf{Model Distillation}: Create smaller, faster student models
+\end{itemize}
+
+\subsection{Production Systems}
+\begin{itemize}
+    \item Deploy optimized models with TensorRT
+    \item Implement serving infrastructure with Triton Inference Server
+    \item A/B test optimizations with real user traffic
+\end{itemize}
+
+\section{Conclusion}
+
+This study demonstrates that LLM optimization is a nuanced engineering challenge requiring careful consideration of workload characteristics. While FlashAttention-2 and quantization are powerful techniques, their effectiveness depends critically on:
+
+\begin{enumerate}
+    \item Batch size (higher is better)
+    \item Sequence length (longer benefits more)
+    \item Model size (larger models see greater gains)
+    \item Hardware architecture (Ampere+ required for FlashAttention)
+\end{enumerate}
+
+Our unexpected results—where optimizations reduced throughput—underscore the importance of empirical validation. Production deployments must profile workloads and validate optimizations against representative data.
+
+The methodologies established in this work provide a foundation for systematic optimization evaluation, and the lessons learned inform best practices for LLM deployment at scale.
+
+\section*{Acknowledgments}
+This work was conducted as part of graduate coursework at Purdue University. Thanks to the open-source community for HuggingFace Transformers, PyTorch, and FlashAttention implementations.
+
+\section*{Code Availability}
+Complete source code, benchmarking scripts, and raw data are available at:\\
+\url{https://github.com/vaishakbala/llm-inference-optimization}
+
+\end{document}
