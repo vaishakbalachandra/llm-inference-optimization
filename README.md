@@ -69,7 +69,7 @@ This project investigates the **real-world performance** of popular LLM optimiza
 ### **Setup:**
 ```bash
 # Clone repository
-git clone https://github.com/vaishakbala/llm-inference-optimization.git
+git clone https://github.com/vaishakbalachandra/llm-inference-optimization.git
 cd llm-inference-optimization
 
 # Install dependencies
@@ -153,7 +153,7 @@ llm-inference-optimization/
 **Vaishak Balachandra**  
 MS in Computer Science | Purdue University  
 📧 vbalachandram@purdue.edu  
-🔗 [LinkedIn](https://linkedin.com/in/vaishakbala) | [GitHub](https://github.com/vaishakbala)
+🔗 [LinkedIn](https://linkedin.com/in/vaishakbalachandra) | [GitHub](https://github.com/vaishakbalachandra)
 
 ---
 
@@ -180,7 +180,7 @@ If you use this work, please cite:
   title = {Large Language Model Inference Optimization: An Empirical Study},
   year = {2026},
   publisher = {GitHub},
-  url = {https://github.com/vaishakbala/llm-inference-optimization}
+  url = {https://github.com/vaishakbalachandra/llm-inference-optimization}
 }
 ```
 
